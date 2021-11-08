@@ -3,9 +3,9 @@ type Update = {
     details: string[]
 };
 
-type EventType = "maintenance" | "incident";
+type EventType = "" | "maintenance" | "incident";
 
-type EventStatus = "planning" | "completed" | "closed";
+type EventStatus = "" | "planning" | "completed" | "open" | "closed";
 
 type EventOptions = {
     id?: number;
@@ -16,7 +16,7 @@ type EventOptions = {
     date?: string;
     startTime?: string;
     endTime?: string;
-    description?: string;
+    description?: string[];
     impactAnalysis?: string;
     updates?: Update[]
 };

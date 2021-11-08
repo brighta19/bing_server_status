@@ -13,10 +13,11 @@ enum Text {
     "incident" = "New Incident",
     "planning" = ":clock4: Planning",
     "completed" = ":white_check_mark: Completed",
+    "open" = ":grey_exclamation: Open",
     "closed" = ":white_check_mark: Closed",
 };
 
-const UPDATE_MS = 60000; // milliseconds
+const UPDATE_MS = 20000; // milliseconds
 
 const USERNAME = "Binghamton University System Status Dashboard";
 const AVATAR_URL = "https://bl3301files.storage.live.com/y4mkHqRjSol7dTzP2USr_xk9OHMHxqVljfW3MBYHpP69M_o2A_-T4HoimlQ8Ve0Kfjyg6dcHxFq_LSzmB6ImpW978M8rzY6XiOJ77mc8sRcA4vHNssa_8L31ZcSugSn5UYSEwYAJ8qw59vjLFku75QKH_qLTWWrYdle2nSRbLnDJD7M_xFPqe27csc6foHsMTIriLQgKEUQJyBC8mEePMKs4g/bingits.png?psid=1&width=512&height=512&cropMode=center";
@@ -26,7 +27,7 @@ const MESSAGE_CONTENT = `:warning: New message from from the [System Status Dash
 const MESSAGE_DELAY_MS = 10000; // milliseconds
 
 let client: WebhookClient;
-let lastEventId: number;
+let knownEvents: Event[] = [];
 
 
 function binarySearch(key: number, array: number[], startingIndex = 0): number {
@@ -56,73 +57,94 @@ function getText(str: EventType | EventStatus | null): string {
 async function checkForUpdates() {
     let events = await Scraper.getRecentEvents();
 
-    let index = binarySearch(lastEventId, events.map(o => o.id));
-    if (index >= 0) {
-        let newEvents = events.slice(0, index);
-        if (newEvents.length > 0) {
-            onNewEvents(newEvents);
-            lastEventId = newEvents[0].id;
-        }
-    }
-}
+    for (let i = 0; i < events.length; i++) {
+        let event = events[i];
 
-async function createMessageEmbed(event: Event): Promise<MessageEmbed> {
-    let {id, url, date, type, status, description} = event;
-    let { servicesImpacted, startTime, endTime } = await Scraper.getEventDetails(url);
+        let index = binarySearch(event.id, knownEvents.map(o => o.id));
+        if (index !== -1) {
+            let knownEvent = knownEvents[index];
+            if ( !Event.isEqual(knownEvent, event) ) {
+                console.log(`Event ${event.id} has been updated!`);
+                let update = event.updates.pop();
+                let updateText = "";
+                if (update !== undefined) {
+                    updateText = "**" + new Date(update.time) + "**\n" + update.details.join("\n");
+                }
 
-    let options = {
-        title: getText(type),
-        url,
-        description,
-        timestamp: new Date(date),
-        color: COLOR,
-        fields: [
-            {
-                name: "Services impacted: ",
-                value: servicesImpacted.join("\n"),
-                inline: true
-            },
-            {
-                name: "Status: ",
-                value: getText(status),
-                inline: true
+                let embed = new MessageEmbed({
+                    title: getText(event.type),
+                    url: event.url,
+                    description: updateText,
+                    timestamp: new Date(event.startTime),
+                    color: COLOR,
+                    fields: [
+                        {
+                            name: "Services impacted: ",
+                            value: event.servicesImpacted.join("\n"),
+                            inline: true
+                        },
+                        {
+                            name: "Status: ",
+                            value: getText(event.status),
+                            inline: true
+                        }
+                    ]
+                });
+
+                client.send({
+                    content: ":warning: New update from from the [System Status Dashboard](${ORIGIN_URL}):",
+                    username: USERNAME,
+                    avatarURL: AVATAR_URL,
+                    embeds: [embed]
+                });
             }
-        ]
-    };
+        }
+        else {
+            console.log(`Event ${event.id} has been created!`);
 
-    let embed = new MessageEmbed(options);
-    return embed;
-}
+            let embed = new MessageEmbed({
+                title: getText(event.type),
+                url: event.url,
+                description: event.description.join("\n"),
+                timestamp: new Date(event.date),
+                color: COLOR,
+                fields: [
+                    {
+                        name: "Services impacted: ",
+                        value: event.servicesImpacted.join("\n"),
+                        inline: true
+                    },
+                    {
+                        name: "Status: ",
+                        value: getText(event.status),
+                        inline: true
+                    }
+                ]
+            });
 
-async function onNewEvents(events: Event[]) {
-    console.log(events.length + " new events!");
-    console.log(JSON.stringify(events));
-
-    for (let i = events.length - 1; i >= 0; i--) {
-        let embed = await createMessageEmbed(events[i]);
-
-        setTimeout(() => {
             client.send({
-                content: MESSAGE_CONTENT,
+                content: ":warning: New event from from the [System Status Dashboard](${ORIGIN_URL}):",
                 username: USERNAME,
                 avatarURL: AVATAR_URL,
                 embeds: [embed]
             });
-        }, MESSAGE_DELAY_MS * (events.length - i - 1));
+        }
     }
+
+    knownEvents = events;
 }
 
-function start() {
+async function start() {
     let { DISCORD_WEBHOOK_URL } = process.env;
     if (DISCORD_WEBHOOK_URL === undefined) {
         throw new Error("The environment variable DISCORD_WEBHOOK_URL is not defined.");
     }
 
     client = new WebhookClient({ url: DISCORD_WEBHOOK_URL });
-    lastEventId = 263;
+
+    knownEvents = await Scraper.getRecentEvents();
 
     setInterval(checkForUpdates, UPDATE_MS);
-    checkForUpdates();
 }
 
 start();
