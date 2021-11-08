@@ -1,8 +1,8 @@
 import fetch from "node-fetch";
 import cheerio from "cheerio";
 
-const BING_SERVER_STATUS_URL_1 = "https://itstatus.binghamton.edu:8443/";
-const BING_SERVER_STATUS_URL_2 = "https://itstatus.binghamton.edu:8443/search/events";
+const ORIGIN_URL = "https://itstatus.binghamton.edu:8443";
+const BING_EVENTS_URL = "https://itstatus.binghamton.edu:8443/search/events";
 const WAIT_MS = 60000; // milliseconds
 const EventType = {
     MAINTENANCE: "maintenance",
@@ -14,19 +14,13 @@ const EventStatus = {
     CLOSED: "closed",
 }
 
-let lastEvent = {
-    id: 263,
-    // type: EventType.MAINTENANCE,
-    // status: EventStatus.COMPLETED,
-    // description: "The university's web servers will be undergoing maintenance.",
-    // link: ""
-};
+let lastEvent = { id: 263 };
 
 
 async function getServices() {
     let services = new Map();
 
-    let result = await fetch(BING_SERVER_STATUS_URL_1);
+    let result = await fetch(ORIGIN_URL);
     let html = await result.text();
 
     let $ = cheerio.load(html);
@@ -54,10 +48,10 @@ async function getServices() {
     return services;
 }
 
-async function getRecentFiveEvents() {
+async function getRecentEvents() {
     let recentEvents = [];
 
-    let result = await fetch(BING_SERVER_STATUS_URL_2);
+    let result = await fetch(BING_EVENTS_URL);
     let html = await result.text();
     let $ = cheerio.load(html);
 
@@ -68,11 +62,11 @@ async function getRecentFiveEvents() {
             && child.attribs.class === "row";
     });
 
-    for (let i = 5; i < 10; i++) {
+    for (let i = 5; i < 15; i++) {
         let div = divs[i].children[1];
 
         let id = div.children[1].children[0].attribs.href.match(/id=(\d+)/)[1];
-        let link = "https://itstatus.binghamton.edu:8443" + div.children[1].children[0].attribs.href;
+        let link = ORIGIN_URL + div.children[1].children[0].attribs.href;
         let date = div.children[1].children[0].children[0].data;
         let type = div.children[3].children[1].data.trim();
         let status = div.children[5].children[1].data.trim();
@@ -105,7 +99,7 @@ function binarySearch(key, array, startingIndex = 0) {
 }
 
 function update() {
-    getRecentFiveEvents().then(events => {
+    getRecentEvents().then(events => {
         let index = binarySearch(lastEvent.id, events.map(o => o.id));
         if (index >= 0) {
             let newEvents = events.slice(0, index);
