@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import { MessageEmbed, WebhookClient } from "discord.js";
 import { Scraper } from "./scraper.js";
 import { Update, EventType, EventStatus } from './types.js';
@@ -22,8 +25,8 @@ const COLOR = 0x6CC24A;
 const MESSAGE_CONTENT = `:warning: New message from from the [System Status Dashboard](${ORIGIN_URL}):`;
 const MESSAGE_DELAY_MS = 10000; // milliseconds
 
-const client = new WebhookClient({ url: "YOUR_WEBHOOK_URL" });
-let lastEventId = 263;
+let client: WebhookClient;
+let lastEventId: number;
 
 
 function binarySearch(key: number, array: number[], startingIndex = 0): number {
@@ -46,6 +49,10 @@ function binarySearch(key: number, array: number[], startingIndex = 0): number {
     }
 }
 
+function getText(str: EventType | EventStatus | null): string {
+    return Text[str ?? ""];
+}
+
 async function checkForUpdates() {
     let events = await Scraper.getRecentEvents();
 
@@ -57,10 +64,6 @@ async function checkForUpdates() {
             lastEventId = newEvents[0].id;
         }
     }
-}
-
-function getText(str: EventType | EventStatus | null): string {
-    return Text[str ?? ""];
 }
 
 async function createMessageEmbed(event: Event): Promise<MessageEmbed> {
@@ -109,5 +112,17 @@ async function onNewEvents(events: Event[]) {
     }
 }
 
-setInterval(checkForUpdates, UPDATE_MS);
-checkForUpdates();
+function start() {
+    let { DISCORD_WEBHOOK_URL } = process.env;
+    if (DISCORD_WEBHOOK_URL === undefined) {
+        throw new Error("The environment variable DISCORD_WEBHOOK_URL is not defined.");
+    }
+
+    client = new WebhookClient({ url: DISCORD_WEBHOOK_URL });
+    lastEventId = 263;
+
+    setInterval(checkForUpdates, UPDATE_MS);
+    checkForUpdates();
+}
+
+start();
