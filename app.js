@@ -149,7 +149,7 @@ function binarySearch(key, array, startingIndex = 0) {
     }
 }
 
-async function update() {
+async function checkForUpdates() {
     let events = await getRecentEvents();
 
     let index = binarySearch(lastEventId, events.map(o => o.id));
@@ -201,5 +201,5 @@ async function onNewEvents(events) {
     }
 }
 
-setInterval(update, UPDATE_MS);
-update();
+setInterval(checkForUpdates, UPDATE_MS);
+checkForUpdates();
